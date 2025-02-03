@@ -8,3 +8,6 @@ database:
   port: 26257
   database: defaultdb
   sslmode: verify-full
+memcache:
+  hostname: localhost
+  port: 11211
