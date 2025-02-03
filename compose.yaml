@@ -1,0 +1,8 @@
+---
+services:
+  memcached:
+    image: memcached:latest
+    container_name: memcached
+    ports:
+      - "11211:11211"  
+    command: ["-m", "64"] # Limit memory usage to 64MB
