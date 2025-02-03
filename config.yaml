@@ -1,0 +1,10 @@
+server:
+  port: 50051
+database:
+  protocol: postgresql
+  username: some username #remove this
+  password: super_password #remove this
+  hostname: spiffy-tapir-7742.j77.aws-eu-central-1.cockroachlabs.cloud
+  port: 26257
+  database: defaultdb
+  sslmode: verify-full

@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+option go_package = "/pb";
+
+import "google/protobuf/timestamp.proto";
+
+package products;
+
+service ProductService {
+  rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse);
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
+  rpc UpdateProduct(UpdateProductRequest) returns (UpdateProductResponse);
+}
+
+enum ProductState {
+  PERISHABLE = 0;
+  NON_PERISHABLE = 1;
+}
+
+enum ProductStatus {
+  IN_STOCK = 0;
+  OUT_OF_STOCK = 1;
+  DISCONTINUED = 2;
+}
+
+message ClothingVariation {
+  string size = 1;
+  string color = 2;
+  string material = 3;
+}
+
+message ElectronicsVariation {
+  string model = 1;
+  int32 voltage = 2;
+  bool has_warranty = 3;
+}
+
+message FoodVariation {
+  string ingredients = 1;
+  int32 calories = 2;
+  bool is_vegetarian = 3;
+}
+
+message CreateProductRequest {
+  string name = 1;
+  string description = 2;
+  float price = 3;
+  string category = 4;
+  repeated string tags = 5;
+  ProductState product_state = 8;  // No need for timestamps in the request
+  ProductStatus product_status = 9;
+  oneof variation {
+    ClothingVariation clothing = 10; // Changed field numbers to avoid conflicts
+    ElectronicsVariation electronics = 11;
+    FoodVariation food = 12;
+  }
+}
+
+message CreateProductResponse {
+  int64 id = 1; // ID should be the first field for consistency
+  string name = 2;
+  string description = 3;
+  float price = 4;
+  string category = 5;
+  repeated string tags = 6;
+  google.protobuf.Timestamp created_at = 7; // Timestamps in the response
+  google.protobuf.Timestamp updated_at = 8;
+  ProductState product_state = 9;
+  ProductStatus product_status = 10;
+  oneof variation {
+    ClothingVariation clothing = 11;
+    ElectronicsVariation electronics = 12;
+    FoodVariation food = 13;
+  }
+}
+
+message GetProductRequest {
+  int64 id = 1;
+}
+
+message GetProductResponse {
+  Product product = 1;
+}
+
+message ListProductsRequest {
+  // Add fields for filtering, pagination, etc. as needed
+  int32 page_size = 1;
+  string page_token = 2; // For pagination
+  string search_term = 3; // Example search term
+}
+
+message ListProductsResponse {
+  repeated Product products = 1;
+  string next_page_token = 2; // For pagination
+}
+
+message UpdateProductRequest {
+  int64 id = 1; // ID of the product to update
+  string name = 2;
+  string description = 3;
+  float price = 4;
+  string category = 5;
+  repeated string tags = 6;
+  ProductState product_state = 9;
+  ProductStatus product_status = 10;
+
+  oneof variation {
+    ClothingVariation clothing = 11; // Changed field numbers to avoid conflicts
+    ElectronicsVariation electronics = 12;
+    FoodVariation food = 13;
+  }
+  // ... other fields to update. Use optional fields for partial updates.
+  google.protobuf.Timestamp updated_at = 14;
+}
+
+message UpdateProductResponse {
+  Product product = 1;
+}
+
+
+message Product {
+  int64 id = 1;
+  string name = 2;
+  string description = 3;
+  float price = 4;
+  string category = 5;
+  repeated string tags = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  ProductState product_state = 9;
+  ProductStatus product_status = 10;
+  oneof variation {
+    ClothingVariation clothing = 11;
+    ElectronicsVariation electronics = 12;
+    FoodVariation food = 13;
+  }
+}
