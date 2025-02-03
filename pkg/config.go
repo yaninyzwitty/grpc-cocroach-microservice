@@ -8,8 +8,9 @@ import (
 )
 
 type Config struct {
-	Database DB     `yaml:"database"`
-	Server   Server `yaml:"server"`
+	Database DB       `yaml:"database"`
+	Server   Server   `yaml:"server"`
+	Memcache Memcache `yaml:"memcache"`
 }
 
 type DB struct {
@@ -18,6 +19,11 @@ type DB struct {
 	Port     int    `yaml:"port"`
 	Database string `yaml:"database"`
 	SSLMode  string `yaml:"sslmode"`
+}
+
+type Memcache struct {
+	Host string `yaml:"host"`
+	Port int    `yaml:"port"`
 }
 
 type Server struct {
