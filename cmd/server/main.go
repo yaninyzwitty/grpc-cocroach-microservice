@@ -77,6 +77,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// initialize sonyflake
 	err = sonyflake.InitSonyFlake()
 	if err != nil {
 		slog.Error("failed to initialize sonyflake", "error", err)
