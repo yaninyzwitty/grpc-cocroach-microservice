@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
+	"net"
 	"os"
 	"time"
 
@@ -12,6 +12,8 @@ import (
 	"github.com/yaninyzwitty/grpc-cocroach-microservice/database"
 	"github.com/yaninyzwitty/grpc-cocroach-microservice/helpers"
 	"github.com/yaninyzwitty/grpc-cocroach-microservice/pkg"
+	sonyflake "github.com/yaninyzwitty/grpc-cocroach-microservice/snowflake"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -65,23 +67,37 @@ func main() {
 	}
 
 	// initalize memcached client
-	memcachedClient, err := database.NewMemcachedClient(cfg.Memcache.Host, cfg.Memcache.Port)
+	// memcachedClient, err := database.NewMemcachedClient(cfg.Memcache.Host, cfg.Memcache.Port)
+	// if err != nil {
+	// 	slog.Error("failed to create memcached client", "error", err)
+	// 	os.Exit(1)
+	// }
+
+	// // Set a value
+	// err = memcachedClient.Set(ctx, "test_key", []byte("Hello, Witty😜!"), 60)
+	// if err != nil {
+	// 	log.Fatalf("Failed to set value: %v", err)
+	// }
+
+	// // Get the value
+	// value, err := memcachedClient.Get(ctx, "test_key")
+	// if err != nil {
+	// 	log.Fatalf("Failed to get value: %v", err)
+	// }
+
+	// fmt.Printf("Retrieved Value: %s\n", value)
+
+	err = sonyflake.InitSonyFlake()
 	if err != nil {
-		slog.Error("failed to create memcached client", "error", err)
+		slog.Error("failed to initialize sonyflake", "error", err)
 		os.Exit(1)
 	}
 
-	// Set a value
-	err = memcachedClient.Set(ctx, "test_key", []byte("Hello, Witty😜!"), 60)
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Server.Port))
 	if err != nil {
-		log.Fatalf("Failed to set value: %v", err)
+		slog.Error("failed to listen", "error", err)
+		os.Exit(1)
 	}
+	server := grpc.NewServer()
 
-	// Get the value
-	value, err := memcachedClient.Get(ctx, "test_key")
-	if err != nil {
-		log.Fatalf("Failed to get value: %v", err)
-	}
-
-	fmt.Printf("Retrieved Value: %s\n", value)
 }
