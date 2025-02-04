@@ -11,6 +11,7 @@ service ProductService {
   rpc GetProduct(GetProductRequest) returns (GetProductResponse);
   rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
   rpc UpdateProduct(UpdateProductRequest) returns (UpdateProductResponse);
+  rpc DeleteProduct(DeleteProductRequest) returns (DeleteProductResponse);
 }
 
 enum ProductState {
@@ -22,6 +23,14 @@ enum ProductStatus {
   IN_STOCK = 0;
   OUT_OF_STOCK = 1;
   DISCONTINUED = 2;
+}
+
+message DeleteProductRequest {
+  int64 product_id = 1;
+}
+
+message DeleteProductResponse {
+  bool deleted = 1;
 }
 
 message ClothingVariation {

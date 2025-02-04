@@ -6,13 +6,17 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/yaninyzwitty/grpc-cocroach-microservice/controller"
 	"github.com/yaninyzwitty/grpc-cocroach-microservice/database"
 	"github.com/yaninyzwitty/grpc-cocroach-microservice/helpers"
+	"github.com/yaninyzwitty/grpc-cocroach-microservice/pb"
 	"github.com/yaninyzwitty/grpc-cocroach-microservice/pkg"
-	sonyflake "github.com/yaninyzwitty/grpc-cocroach-microservice/snowflake"
+	"github.com/yaninyzwitty/grpc-cocroach-microservice/sonyflake"
 	"google.golang.org/grpc"
 )
 
@@ -98,6 +102,29 @@ func main() {
 		slog.Error("failed to listen", "error", err)
 		os.Exit(1)
 	}
+
+	productController := controller.NewProductController(pool)
 	server := grpc.NewServer()
+
+	pb.RegisterProductServiceServer(server, productController)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		sig := <-sigChan
+		slog.Info("Received shutdown signal", "signal", sig)
+		slog.Info("Shutting down gRPC server...")
+
+		// Gracefully stop the gRPC server
+		server.GracefulStop()
+		cancel()
+
+		slog.Info("gRPC server has been stopped gracefully")
+	}()
+
+	slog.Info("Starting gRPC server", "port", cfg.Server.Port)
+	if err := server.Serve(lis); err != nil {
+		slog.Error("gRPC server encountered an error while serving", "error", err)
+		os.Exit(1)
+	}
 
 }
