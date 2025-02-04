@@ -4,18 +4,21 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/yaninyzwitty/grpc-cocroach-microservice/database"
 	"github.com/yaninyzwitty/grpc-cocroach-microservice/pb"
 )
 
 type productController struct {
-	pool *pgxpool.Pool
+	pool            *pgxpool.Pool
+	memcachedClient *database.MemcachedClient
 	pb.UnimplementedProductServiceServer
 }
 
 // NewProductController returns an instance that implements pb.ProductServiceServer.
-func NewProductController(pool *pgxpool.Pool) pb.ProductServiceServer {
+func NewProductController(pool *pgxpool.Pool, memcachedClient *database.MemcachedClient) pb.ProductServiceServer {
 	return &productController{
-		pool: pool,
+		pool:            pool,
+		memcachedClient: memcachedClient,
 	}
 }
 

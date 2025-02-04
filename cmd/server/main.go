@@ -71,25 +71,11 @@ func main() {
 	}
 
 	// initalize memcached client
-	// memcachedClient, err := database.NewMemcachedClient(cfg.Memcache.Host, cfg.Memcache.Port)
-	// if err != nil {
-	// 	slog.Error("failed to create memcached client", "error", err)
-	// 	os.Exit(1)
-	// }
-
-	// // Set a value
-	// err = memcachedClient.Set(ctx, "test_key", []byte("Hello, Witty😜!"), 60)
-	// if err != nil {
-	// 	log.Fatalf("Failed to set value: %v", err)
-	// }
-
-	// // Get the value
-	// value, err := memcachedClient.Get(ctx, "test_key")
-	// if err != nil {
-	// 	log.Fatalf("Failed to get value: %v", err)
-	// }
-
-	// fmt.Printf("Retrieved Value: %s\n", value)
+	memcachedClient, err := database.NewMemcachedClient(cfg.Memcache.Host, cfg.Memcache.Port)
+	if err != nil {
+		slog.Error("failed to create memcached client", "error", err)
+		os.Exit(1)
+	}
 
 	err = sonyflake.InitSonyFlake()
 	if err != nil {
@@ -103,7 +89,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	productController := controller.NewProductController(pool)
+	productController := controller.NewProductController(pool, memcachedClient)
 	server := grpc.NewServer()
 
 	pb.RegisterProductServiceServer(server, productController)
