@@ -23,6 +23,7 @@ func NewProductController(pool *pgxpool.Pool, memcachedClient *database.Memcache
 }
 
 func (c *productController) CreateProduct(ctx context.Context, req *pb.CreateProductRequest) (*pb.CreateProductResponse, error) {
+
 	return &pb.CreateProductResponse{}, nil
 }
 
