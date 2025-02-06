@@ -71,11 +71,11 @@ func main() {
 	}
 
 	// initalize memcached client
-	memcachedClient, err := database.NewMemcachedClient(cfg.Memcache.Host, cfg.Memcache.Port)
-	if err != nil {
-		slog.Error("failed to create memcached client", "error", err)
-		os.Exit(1)
-	}
+	// memcachedClient, err := database.NewMemcachedClient(cfg.Memcache.Host, cfg.Memcache.Port)
+	// if err != nil {
+	// 	slog.Error("failed to create memcached client", "error", err)
+	// 	os.Exit(1)
+	// }
 
 	// initialize sonyflake
 	err = sonyflake.InitSonyFlake()
@@ -90,7 +90,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	productController := controller.NewProductController(pool, memcachedClient)
+	productController := controller.NewProductController(pool)
 	server := grpc.NewServer()
 
 	pb.RegisterProductServiceServer(server, productController)
