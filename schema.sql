@@ -1,0 +1,13 @@
+CREATE TABLE products (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    price DECIMAL(10, 2) NOT NULL,
+    category VARCHAR(255),
+    tags TEXT[] NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    product_state VARCHAR(50) NOT NULL CHECK (product_state IN ('PERISHABLE', 'NON_PERISHABLE')),
+    product_status VARCHAR(50) NOT NULL CHECK (product_status IN ('IN_STOCK', 'OUT_OF_STOCK', 'DISCONTINUED')),
+    variation JSONB NOT NULL
+);
