@@ -2,16 +2,15 @@ package controller
 
 import (
 	"context"
-	"errors"
+	"strings"
 	"time"
 
-	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/yaninyzwitty/grpc-cocroach-microservice/pb"
 	"github.com/yaninyzwitty/grpc-cocroach-microservice/sonyflake"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -201,15 +200,17 @@ func (c *productController) GetProduct(ctx context.Context, req *pb.GetProductRe
 	// Define the SQL query to retrieve the product.
 	query := `
 		SELECT id, name, description, price, category, tags, created_at, updated_at, product_state, product_status, variation
-		FROM products
+		FROM products 
 		WHERE id = $1
 	`
 
 	var product pb.Product
 	var variationData []byte
 	var createdAt, updatedAt time.Time
+	// Scan product_state and product_status as strings so we can convert them later.
+	var productStateStr, productStatusStr string
 
-	// Execute the query and scan the results into variables.
+	// Execute the query and scan the results.
 	err := c.pool.QueryRow(ctx, query, req.GetId()).Scan(
 		&product.Id,
 		&product.Name,
@@ -219,15 +220,11 @@ func (c *productController) GetProduct(ctx context.Context, req *pb.GetProductRe
 		&product.Tags,
 		&createdAt,
 		&updatedAt,
-		&product.ProductState,
-		&product.ProductStatus,
+		&productStateStr,
+		&productStatusStr,
 		&variationData,
 	)
 	if err != nil {
-		// Check for a "no rows" error using the appropriate error constant.
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Errorf(codes.NotFound, "product not found")
-		}
 		return nil, status.Errorf(codes.Internal, "failed to get product: %v", err)
 	}
 
@@ -235,17 +232,43 @@ func (c *productController) GetProduct(ctx context.Context, req *pb.GetProductRe
 	product.CreatedAt = timestamppb.New(createdAt)
 	product.UpdatedAt = timestamppb.New(updatedAt)
 
+	// Convert the product state string to its enum.
+	if stateVal, ok := pb.ProductState_value[productStateStr]; ok {
+		product.ProductState = pb.ProductState(stateVal)
+	} else {
+		return nil, status.Errorf(codes.Internal, "invalid product state: %s", productStateStr)
+	}
+
+	// Convert the product status string to its enum.
+	if statusVal, ok := pb.ProductStatus_value[productStatusStr]; ok {
+		product.ProductStatus = pb.ProductStatus(statusVal)
+	} else {
+		return nil, status.Errorf(codes.Internal, "invalid product status: %s", productStatusStr)
+	}
+
 	// If variation data is present, decode it.
 	if len(variationData) > 0 {
-		// Create a temporary Product to decode the variation.
-		var tmpVariation pb.Product
-		// Since the variation is stored as JSON, use protojson.Unmarshal.
-		if err := proto.Unmarshal(variationData, &tmpVariation); err != nil {
+		// Log the original variation data for debugging.
+		original := string(variationData)
+
+		// Transform the JSON data to match the expected oneof field names in the proto.
+		// Replace any capitalized keys ("Clothing", "Electronics", "Food") with the lowercase versions.
+		transformed := original
+		transformed = strings.Replace(transformed, `"Clothing":`, `"clothing":`, 1)
+		transformed = strings.Replace(transformed, `"Electronics":`, `"electronics":`, 1)
+		transformed = strings.Replace(transformed, `"Food":`, `"food":`, 1)
+
+		// Unmarshal the transformed JSON into a temporary Product.
+		var tmpProduct pb.Product
+		unmarshaler := protojson.UnmarshalOptions{
+			DiscardUnknown: true,
+		}
+		if err := unmarshaler.Unmarshal([]byte(transformed), &tmpProduct); err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to decode variation: %v", err)
 		}
 
 		// Assign the correct oneof field based on the type.
-		switch v := tmpVariation.Variation.(type) {
+		switch v := tmpProduct.Variation.(type) {
 		case *pb.Product_Clothing:
 			product.Variation = &pb.Product_Clothing{Clothing: v.Clothing}
 		case *pb.Product_Food:
@@ -253,7 +276,7 @@ func (c *productController) GetProduct(ctx context.Context, req *pb.GetProductRe
 		case *pb.Product_Electronics:
 			product.Variation = &pb.Product_Electronics{Electronics: v.Electronics}
 		default:
-			// Optionally handle unexpected variation types.
+			// If the variation does not match any expected type, leave it as nil.
 			product.Variation = nil
 		}
 	}
@@ -312,7 +335,7 @@ func (c *productController) ListProducts(ctx context.Context, req *pb.ListProduc
 		// If variation data exists, unmarshal it using protojson.
 		if len(variationData) > 0 {
 			var tmpVariation pb.Product
-			if err := proto.Unmarshal(variationData, &tmpVariation); err != nil {
+			if err := protojson.Unmarshal(variationData, &tmpVariation); err != nil {
 				return nil, status.Errorf(codes.Internal, "failed to decode variation: %v", err)
 			}
 			// Depending on the oneof type, assign the appropriate variation field.
