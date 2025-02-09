@@ -18,6 +18,7 @@ import (
 	"github.com/yaninyzwitty/grpc-cocroach-microservice/pkg"
 	"github.com/yaninyzwitty/grpc-cocroach-microservice/sonyflake"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 func main() {
@@ -91,7 +92,9 @@ func main() {
 	}
 
 	productController := controller.NewProductController(pool)
+
 	server := grpc.NewServer()
+	reflection.Register(server) // This line enables reflection
 
 	pb.RegisterProductServiceServer(server, productController)
 	sigChan := make(chan os.Signal, 1)
