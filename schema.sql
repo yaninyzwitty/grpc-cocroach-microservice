@@ -1,5 +1,5 @@
 CREATE TABLE products (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGINT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     price DECIMAL(10, 2) NOT NULL,
@@ -11,3 +11,5 @@ CREATE TABLE products (
     product_status VARCHAR(50) NOT NULL CHECK (product_status IN ('IN_STOCK', 'OUT_OF_STOCK', 'DISCONTINUED')),
     variation JSONB NOT NULL
 );
+
+

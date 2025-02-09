@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -193,14 +195,25 @@ func (c *productController) DeleteProduct(ctx context.Context, req *pb.DeletePro
 
 func (c *productController) GetProduct(ctx context.Context, req *pb.GetProductRequest) (*pb.GetProductResponse, error) {
 	// Validate the request: ensure the product ID is provided.
-	if req.GetId() == 0 {
+	if req.GetId() <= 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "product id is required")
 	}
 
 	// Define the SQL query to retrieve the product.
 	query := `
-		SELECT id, name, description, price, category, tags, created_at, updated_at, product_state, product_status, variation
-		FROM products 
+		SELECT 
+			id,
+			name,
+			description,
+			price,
+			category,
+			tags,
+			created_at,
+			updated_at,
+			product_state,
+			product_status,
+			variation
+		FROM products
 		WHERE id = $1
 	`
 
@@ -288,80 +301,175 @@ func (c *productController) GetProduct(ctx context.Context, req *pb.GetProductRe
 }
 
 func (c *productController) ListProducts(ctx context.Context, req *pb.ListProductsRequest) (*pb.ListProductsResponse, error) {
-	// Define the SQL query to retrieve all products.
+	pageSize := req.PageSize
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	// For simplicity, we treat the page token as an offset (encoded as a string).
+	offset := 0
+	if req.PageToken != "" {
+		var err error
+		offset, err = strconv.Atoi(req.PageToken)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid page token")
+		}
+	}
+
 	query := `
-		SELECT id, name, description, price, category, tags, created_at, updated_at, product_state, product_status, variation
-		FROM products
+	SELECT 
+		id,
+		name,
+		description,
+		price,
+		category,
+		tags,
+		created_at,
+		updated_at,
+		product_state,
+		product_status,
+		variation
+	FROM products
 	`
 
+	args := []interface{}{}
+	// If a search term is provided, filter on the product name.
+	if req.SearchTerm != "" {
+		query += " WHERE name ILIKE $1"
+		args = append(args, fmt.Sprintf("%%%s%%", req.SearchTerm))
+	}
+
+	// Append ordering, limit, and offset.
+	argPosition := len(args) + 1
+	query += fmt.Sprintf(" ORDER BY id ASC LIMIT $%d OFFSET $%d", argPosition, argPosition+1)
+	args = append(args, pageSize, offset)
+
 	// Execute the query.
-	rows, err := c.pool.Query(ctx, query)
+	rows, err := c.pool.Query(ctx, query, args...)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list products: %v", err)
+		return nil, status.Errorf(codes.Internal, "query error: %v", err)
 	}
 	defer rows.Close()
 
-	// Prepare a slice to store the resulting products.
-	var products []*pb.Product
-
-	// Loop through each row returned by the query.
+	products := []*pb.Product{}
 	for rows.Next() {
-		var product pb.Product
-		var variationData []byte
-		var createdAt, updatedAt time.Time
-
-		// Scan the current row into our product variables.
+		var (
+			id            int64
+			name          string
+			description   string
+			price         float64 // DECIMAL will be scanned as float64
+			category      string
+			tags          []string
+			createdAt     time.Time
+			updatedAt     time.Time
+			productState  string
+			productStatus string
+			variationJSON []byte // JSONB column
+		)
 		err := rows.Scan(
-			&product.Id,
-			&product.Name,
-			&product.Description,
-			&product.Price,
-			&product.Category,
-			&product.Tags,
+			&id,
+			&name,
+			&description,
+			&price,
+			&category,
+			&tags,
 			&createdAt,
 			&updatedAt,
-			&product.ProductState,
-			&product.ProductStatus,
-			&variationData,
+			&productState,
+			&productStatus,
+			&variationJSON,
 		)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to scan product: %v", err)
+			return nil, status.Errorf(codes.Internal, "failed to scan row: %v", err)
 		}
 
-		// Convert the database timestamps to protobuf timestamps.
-		product.CreatedAt = timestamppb.New(createdAt)
-		product.UpdatedAt = timestamppb.New(updatedAt)
+		// Convert timestamps to protobuf Timestamp.
+		createdProto := timestamppb.New(createdAt)
+		updatedProto := timestamppb.New(updatedAt)
 
-		// If variation data exists, unmarshal it using protojson.
-		if len(variationData) > 0 {
-			var tmpVariation pb.Product
-			if err := protojson.Unmarshal(variationData, &tmpVariation); err != nil {
-				return nil, status.Errorf(codes.Internal, "failed to decode variation: %v", err)
-			}
-			// Depending on the oneof type, assign the appropriate variation field.
-			switch v := tmpVariation.Variation.(type) {
-			case *pb.Product_Clothing:
-				product.Variation = &pb.Product_Clothing{Clothing: v.Clothing}
-			case *pb.Product_Food:
-				product.Variation = &pb.Product_Food{Food: v.Food}
-			case *pb.Product_Electronics:
-				product.Variation = &pb.Product_Electronics{Electronics: v.Electronics}
-			default:
-				product.Variation = nil
-			}
+		// Build the Product message.
+		product := &pb.Product{
+			Id:            id,
+			Name:          name,
+			Description:   description,
+			Price:         float32(price),
+			Category:      category,
+			Tags:          tags,
+			CreatedAt:     createdProto,
+			UpdatedAt:     updatedProto,
+			ProductState:  c.convertProductState(productState),
+			ProductStatus: c.convertProductStatus(productStatus),
 		}
 
-		// Add the product to the list.
-		products = append(products, &product)
+		// Unmarshal the variation JSON based on the product category.
+		// (Assuming the category indicates which variation message to use.)
+		switch category {
+		case "clothing":
+			var clothing pb.ClothingVariation
+			if err := protojson.Unmarshal(variationJSON, &clothing); err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to unmarshal clothing variation: %v", err)
+			}
+			product.Variation = &pb.Product_Clothing{Clothing: &clothing}
+
+		case "electronics":
+			var electronics pb.ElectronicsVariation
+			if err := protojson.Unmarshal(variationJSON, &electronics); err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to unmarshal electronics variation: %v", err)
+			}
+			product.Variation = &pb.Product_Electronics{Electronics: &electronics}
+
+		case "food":
+			var food pb.FoodVariation
+			if err := protojson.Unmarshal(variationJSON, &food); err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to unmarshal food variation: %v", err)
+			}
+			product.Variation = &pb.Product_Food{Food: &food}
+
+		default:
+			// If no known category is set, you could choose to log or ignore.
+		}
+
+		products = append(products, product)
 	}
 
-	// Check for any errors encountered during row iteration.
 	if err := rows.Err(); err != nil {
-		return nil, status.Errorf(codes.Internal, "error reading products: %v", err)
+		return nil, status.Errorf(codes.Internal, "error iterating rows: %v", err)
 	}
 
-	// Return the list of products in the response.
+	// Calculate the next page token.
+	// If the number of returned products equals pageSize then there might be more.
+	nextPageToken := ""
+	if len(products) == int(pageSize) {
+		nextPageToken = strconv.Itoa(offset + len(products))
+	}
+
 	return &pb.ListProductsResponse{
-		Products: products,
+		Products:      products,
+		NextPageToken: nextPageToken,
 	}, nil
+}
+
+// Helper conversion functions (adjust enum values based on your proto definitions).
+func (c *productController) convertProductState(state string) pb.ProductState {
+	switch state {
+	case "PERISHABLE":
+		return pb.ProductState_PERISHABLE
+	case "NON_PERISHABLE":
+		return pb.ProductState_NON_PERISHABLE
+	default:
+		return pb.ProductState(0) // or a defined UNKNOWN value if available
+	}
+}
+
+func (c *productController) convertProductStatus(statusStr string) pb.ProductStatus {
+	switch statusStr {
+	case "IN_STOCK":
+		return pb.ProductStatus_IN_STOCK
+	case "OUT_OF_STOCK":
+		return pb.ProductStatus_OUT_OF_STOCK
+	case "DISCONTINUED":
+		return pb.ProductStatus_DISCONTINUED
+	default:
+		return pb.ProductStatus(0) // or a defined UNKNOWN value if available
+	}
 }
