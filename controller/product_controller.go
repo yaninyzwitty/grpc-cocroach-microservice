@@ -195,14 +195,25 @@ func (c *productController) DeleteProduct(ctx context.Context, req *pb.DeletePro
 
 func (c *productController) GetProduct(ctx context.Context, req *pb.GetProductRequest) (*pb.GetProductResponse, error) {
 	// Validate the request: ensure the product ID is provided.
-	if req.GetId() == 0 {
+	if req.GetId() <= 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "product id is required")
 	}
 
 	// Define the SQL query to retrieve the product.
 	query := `
-		SELECT id, name, description, price, category, tags, created_at, updated_at, product_state, product_status, variation
-		FROM products 
+		SELECT 
+			id,
+			name,
+			description,
+			price,
+			category,
+			tags,
+			created_at,
+			updated_at,
+			product_state,
+			product_status,
+			variation
+		FROM products
 		WHERE id = $1
 	`
 
@@ -386,8 +397,8 @@ func (c *productController) ListProducts(ctx context.Context, req *pb.ListProduc
 			Tags:          tags,
 			CreatedAt:     createdProto,
 			UpdatedAt:     updatedProto,
-			ProductState:  convertProductState(productState),
-			ProductStatus: convertProductStatus(productStatus),
+			ProductState:  c.convertProductState(productState),
+			ProductStatus: c.convertProductStatus(productStatus),
 		}
 
 		// Unmarshal the variation JSON based on the product category.
@@ -439,7 +450,7 @@ func (c *productController) ListProducts(ctx context.Context, req *pb.ListProduc
 }
 
 // Helper conversion functions (adjust enum values based on your proto definitions).
-func convertProductState(state string) pb.ProductState {
+func (c *productController) convertProductState(state string) pb.ProductState {
 	switch state {
 	case "PERISHABLE":
 		return pb.ProductState_PERISHABLE
@@ -450,7 +461,7 @@ func convertProductState(state string) pb.ProductState {
 	}
 }
 
-func convertProductStatus(statusStr string) pb.ProductStatus {
+func (c *productController) convertProductStatus(statusStr string) pb.ProductStatus {
 	switch statusStr {
 	case "IN_STOCK":
 		return pb.ProductStatus_IN_STOCK

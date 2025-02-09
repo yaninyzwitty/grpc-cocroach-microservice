@@ -39,39 +39,15 @@ func main() {
 	defer conn.Close()
 
 	productClient := pb.NewProductServiceClient(conn)
-	productRequest := &pb.CreateProductRequest{
-		Name:          "Lemon Cake",
-		Description:   "Rich and moist lemon cake topped with creamy frosting.",
-		Price:         15.99,
-		Category:      "Dessert",
-		Tags:          []string{"cake", "dessert", "chocolate"},
-		ProductState:  pb.ProductState_PERISHABLE,
-		ProductStatus: pb.ProductStatus_IN_STOCK,
-		Variation: &pb.CreateProductRequest_Food{
-			Food: &pb.FoodVariation{
-				Ingredients:  "Flour, Sugar, Cocoa Powder, Eggs, Butter",
-				Calories:     350,
-				IsVegetarian: true,
-			},
-		},
-	}
-
-	res, err := productClient.CreateProduct(ctx, productRequest)
-	if err != nil {
-		slog.Error("failed to create product", "error", err)
-		os.Exit(1)
-	}
-
-	slog.Info("Product created successfully", "productID", res.Id, "productName", res.Name, "tags", res.Tags, "variations", res.Variation)
 
 	getProductRes, err := productClient.GetProduct(ctx, &pb.GetProductRequest{
-		Id: int64(229102406774849537),
+		Id: int64(229577284481220609),
 	})
 	if err != nil {
 		slog.Error("failed to get product", "error", err)
 		os.Exit(1)
 	}
 
-	slog.Info("Product retrieved successfully", "productName", getProductRes.Product.Name, "tags", getProductRes.Product.Tags, "variations", getProductRes.Product.Variation, "value", getProductRes.Product.ProductStatus)
+	slog.Info("here", "val", getProductRes.Product)
 
 }
