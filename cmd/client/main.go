@@ -48,6 +48,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	slog.Info("here", "val", getProductRes.Product)
+	slog.Info("here", "val", getProductRes)
 
 }
+
+// grpcurl -d "{\"id\": 229577547564744700}" -proto proto\products.proto -import-path ./ -plaintext localhost:50051 products.ProductService/GetProduct

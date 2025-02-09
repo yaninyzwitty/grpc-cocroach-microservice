@@ -145,3 +145,5 @@ message Product {
     FoodVariation food = 13;
   }
 }
+
+// grpcurl -d "{\"id\": 229577284481220609}" -proto proto/products.proto -import-path ./ -plaintext localhost:50051 products.ProductService/GetProduct
