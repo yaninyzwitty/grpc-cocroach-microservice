@@ -1,19 +1,19 @@
 ---
 services:
-  # grpc-cocroach-microservice:
-  #   # image: yaninyzwitty/grpc-cocroach-microservice:latest
-  #   build: 
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "50051:50051"
-  #   depends_on:
-  #     - memcached
-  #   environment:
-  #     - COCROACH_DB_PASSWORD
-  #     - COCROACH_USERNAME
-  #   env_file:
-  #     - .env
+  grpc-cocroach-microservice:
+    # image: yaninyzwitty/grpc-cocroach-microservice:latest
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "50051:50051"
+    depends_on:
+    - memcached
+    environment:
+      - COCROACH_DB_PASSWORD
+      - COCROACH_USERNAME
+    env_file:
+      - .env
     
   memcached:
     image: memcached:latest
