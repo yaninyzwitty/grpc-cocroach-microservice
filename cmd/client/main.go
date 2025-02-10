@@ -52,4 +52,4 @@ func main() {
 
 }
 
-// grpcurl -d "{\"id\": 229577547564744700}" -proto proto\products.proto -import-path ./ -plaintext localhost:50051 products.ProductService/GetProduct
+// grpcurl -d "{\"id\": 229577284481220609}" -proto proto\products.proto -import-path ./ -plaintext localhost:50051 products.ProductService/GetProduct
