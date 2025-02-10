@@ -3,11 +3,13 @@ package controller
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/yaninyzwitty/grpc-cocroach-microservice/database"
 	"github.com/yaninyzwitty/grpc-cocroach-microservice/pb"
 	"github.com/yaninyzwitty/grpc-cocroach-microservice/sonyflake"
 	"google.golang.org/grpc/codes"
@@ -17,16 +19,16 @@ import (
 )
 
 type productController struct {
-	pool *pgxpool.Pool
-	// memcachedClient *database.MemcachedClient
+	pool            *pgxpool.Pool
+	memcachedClient *database.MemcachedClient
 	pb.UnimplementedProductServiceServer
 }
 
 // NewProductController returns an instance that implements pb.ProductServiceServer.
-func NewProductController(pool *pgxpool.Pool) pb.ProductServiceServer {
+func NewProductController(pool *pgxpool.Pool, memcachedClient *database.MemcachedClient) pb.ProductServiceServer {
 	return &productController{
-		pool: pool,
-		// memcachedClient: memcachedClient,
+		pool:            pool,
+		memcachedClient: memcachedClient,
 	}
 }
 
@@ -316,6 +318,27 @@ func (c *productController) ListProducts(ctx context.Context, req *pb.ListProduc
 		}
 	}
 
+	// Generate a cache key based on the request parameters (page size, page token, and search term).
+	cacheKey := fmt.Sprintf("product-list:%d:%d:%s", pageSize, offset, req.SearchTerm)
+
+	// Attempt to retrieve the product list from cache.
+	cacheBytes, err := c.memcachedClient.Get(ctx, cacheKey)
+	if err == nil && cacheBytes != nil {
+		// Cache hit: unmarshal and return the cached products.
+		var cachedResponse pb.ListProductsResponse
+		if err := protojson.Unmarshal(cacheBytes, &cachedResponse); err == nil {
+			return &cachedResponse, nil
+		} else {
+			// Cache unmarshalling failed, log and continue to fetch from DB.
+			slog.Warn("failed to unmarshal cached product list", "key", cacheKey, "error", err)
+		}
+	} else {
+		// Cache miss or error, proceed to fetch from DB.
+		if err != nil {
+			slog.Warn("cache error", "key", cacheKey, "error", err)
+		}
+	}
+
 	query := `
 	SELECT 
 		id,
@@ -443,10 +466,22 @@ func (c *productController) ListProducts(ctx context.Context, req *pb.ListProduc
 		nextPageToken = strconv.Itoa(offset + len(products))
 	}
 
-	return &pb.ListProductsResponse{
+	response := &pb.ListProductsResponse{
 		Products:      products,
 		NextPageToken: nextPageToken,
-	}, nil
+	}
+
+	// Cache the product list for 1 hour (3600 seconds).
+	productBytes, err := protojson.Marshal(response)
+	if err != nil {
+		slog.Warn("failed to marshal product list for caching", "key", cacheKey, "error", err)
+	} else {
+		if err := c.memcachedClient.Set(ctx, cacheKey, productBytes, 3600); err != nil {
+			slog.Warn("failed to set product list in cache", "key", cacheKey, "error", err)
+		}
+	}
+	return response, nil
+
 }
 
 // Helper conversion functions (adjust enum values based on your proto definitions).
